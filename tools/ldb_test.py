@@ -540,6 +540,23 @@ class LDBTestCase(unittest.TestCase):
         # obtained from list_live_files_metadata. Everything should match.
         self.assertEqual(referenceMap,testMap)
 
+        # Test that the column_family flag is not ignored.
+        dumpFilePath5 = os.path.join(self.TMP_DIR, "dump5")
+        self.assertTrue(self.listLiveFilesMetadata(
+                            "--sort_by_filename --db=%s --column_family=mycol1" % dbPath,
+                            dumpFilePath5))
+        with open(dumpFilePath5, "r") as tmp:
+            data = tmp.read()
+            # Since for each SST file, all the information is contained
+            # on one line, the parsing is easy to perform and relies on
+            # the appearance of an "00xxx.sst" pattern.
+            sstLines = re.findall(r".*\d+.sst.*", data)
+            for line in sstLines:
+                sstFilename = re.findall(r"\d+.sst", line)[0]
+                sstLevel = re.findall(r"(?<=level )\d+",line)[0]
+                cf = re.findall(r"(?<=column family \')\w+(?=\')",line)[0]
+                self.assertEqual(cf,"mycol1")
+
     def getManifests(self, directory):
         return glob.glob(directory + "/MANIFEST-*")
 

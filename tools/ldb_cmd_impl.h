@@ -61,6 +61,7 @@ class DBLiveFilesMetadataDumperCommand : public LDBCommand {
 
  private:
   bool sort_by_filename_;
+  bool single_cf_;
 
   static const std::string ARG_SORT_BY_FILENAME;
 };

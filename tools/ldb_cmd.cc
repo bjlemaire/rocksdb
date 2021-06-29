@@ -3410,12 +3410,15 @@ DBLiveFilesMetadataDumperCommand::DBLiveFilesMetadataDumperCommand(
     : LDBCommand(options, flags, true,
                  BuildCmdLineOptions({ARG_SORT_BY_FILENAME})) {
   sort_by_filename_ = IsFlagPresent(flags, ARG_SORT_BY_FILENAME);
+  // Check if the user asked for a specific column family only.
+  single_cf_ = options.find(ARG_CF_NAME) != options.end();
 }
 
 void DBLiveFilesMetadataDumperCommand::Help(std::string& ret) {
   ret.append("  ");
   ret.append(DBLiveFilesMetadataDumperCommand::Name());
   ret.append(" [--" + ARG_SORT_BY_FILENAME + "] ");
+  ret.append(" [--" + ARG_CF_NAME + "] ");
   ret.append("\n");
 }
 
@@ -3449,8 +3452,12 @@ void DBLiveFilesMetadataDumperCommand::DoCommand() {
       filename = NormalizePath(filename);
       std::string cf = fileMetadata.column_family_name;
       int level = fileMetadata.level;
-      std::cout << filename << " : level " << level << ", column family '" << cf
-                << "'" << std::endl;
+      // If the user used the --column_family option,
+      // only show data for this column family.
+      if (!single_cf_ || (column_family_name_.compare(cf) == 0)) {
+        std::cout << filename << " : level " << level << ", column family '"
+                  << cf << "'" << std::endl;
+      }
     }
   } else {
     std::map<std::string, std::map<int, std::vector<std::string>>>
@@ -3460,6 +3467,11 @@ void DBLiveFilesMetadataDumperCommand::DoCommand() {
     // sort by column family (first key) and by level (second key).
     for (auto& fileMetadata : metadata) {
       std::string cf = fileMetadata.column_family_name;
+      // If the user used the --column_family option,
+      // only show data for this column family.
+      if (single_cf_ && (column_family_name_.compare(cf) != 0)) {
+        continue;
+      }
       int level = fileMetadata.level;
       if (filesPerLevelPerCf.find(cf) == filesPerLevelPerCf.end()) {
         filesPerLevelPerCf.emplace(cf,
