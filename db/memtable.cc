@@ -115,12 +115,19 @@ MemTable::MemTable(const InternalKeyComparator& cmp,
   assert(!ShouldScheduleFlush());
 
   // use bloom_filter_ for both whole key and prefix bloom filter
-  if ((prefix_extractor_ || moptions_.memtable_whole_key_filtering) &&
-      moptions_.memtable_prefix_bloom_bits > 0) {
-    bloom_filter_.reset(
-        new DynamicBloom(&arena_, moptions_.memtable_prefix_bloom_bits,
-                         6 /* hard coded 6 probes */,
-                         moptions_.memtable_huge_page_size, ioptions.logger));
+  if ((prefix_extractor_ || moptions_.memtable_whole_key_filtering)) {
+    if (mutable_cf_options.memtable_self_tuning_bloom &&
+        ioptions.stats != nullptr) {
+      (void)bloom_filter_;
+      bool flasher = mutable_cf_options.memtable_self_tuning_bloom;
+      printf("flasher is %s", flasher ? "true" : "false");
+    }
+    if (moptions_.memtable_prefix_bloom_bits > 0) {
+      bloom_filter_.reset(
+          new DynamicBloom(&arena_, moptions_.memtable_prefix_bloom_bits,
+                           6 /* hard coded 6 probes */,
+                           moptions_.memtable_huge_page_size, ioptions.logger));
+    }
   }
 }
 
