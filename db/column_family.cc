@@ -1057,7 +1057,13 @@ MemTable* ColumnFamilyData::ConstructNewMemtable(
     const MutableCFOptions& mutable_cf_options, SequenceNumber earliest_seq) {
   if (mutable_cf_options.memtable_self_tuning_bloom) {
     size_t num_add = 0, payload_bytes = 0, garbage_bytes = 0, memtable_hit = 0,
-           memtable_miss = 0;
+           memtable_miss = 0, zero = 0;
+    uint32_t memtable_prefix_bloom_bits =
+                 static_cast<uint32_t>(
+                     static_cast<double>(mutable_cf_options.write_buffer_size) *
+                     0.0015) *
+                 8u,
+             num_probes = 6;
 
     Status stats_s = internal_stats_.get()->GetInternalCFStats(
         InternalStats::MEMTABLE_TOTAL_ADD_AT_FLUSH, &num_add);
@@ -1082,17 +1088,50 @@ MemTable* ColumnFamilyData::ConstructNewMemtable(
 
       // Note that if memtable_miss=0, you might want to fall back onto default
       // values.
-      double memtable_prefix_bloom_size_ratio =
-          0.1 * exp(-1 / (memtable_miss * 1.0 / (memtable_hit + num_add)));
-      uint32_t memtable_prefix_bloom_bits =
-          static_cast<uint32_t>(
-              static_cast<double>(mutable_cf_options.write_buffer_size) *
-              memtable_prefix_bloom_size_ratio) *
-          8u;
-      uint64_t num_probes = static_cast<uint64_t>(
-          ceil(memtable_prefix_bloom_bits * 1.0 * 1.44 / unique_entries));
-      (void)num_probes;
+      if (memtable_miss == 0) {
+        // If no misses at the last iteration,
+        // try to reduce the space taken by the last bloom fitlers
+        // A 1% FPR is always better than too large a Bloom filter with FPR of
+        // 0%.
+        memtable_prefix_bloom_bits = curr_memtable_prefix_bloom_bits / 2;
+      } else {
+        // Here is a function that maps [0, infty] to [0, 0.1].
+        // The idea is to allocate at a maximum 10% of the memtable to the Bloom
+        // filter (the "0.1" coefficient comes from the "10%"). If the Number
+        // of misses is much greater than hit+adds, you want to allocate as
+        // close as this 10% maximum. Conversely, if there is no misses, you
+        // want to allocate 0 bits.
+        double memtable_prefix_bloom_size_ratio =
+            0.1 * exp(-1 / (memtable_miss * 1.0 / (memtable_hit + num_add)));
+
+        // Take an average of the newly recommended bloom bits and the
+        // previously allocated number of bits:
+        // bloom_bits = (new + old)/2
+        // This makes the self-tuning algorithm iterative.
+        memtable_prefix_bloom_bits =
+            ((static_cast<uint32_t>(
+                  static_cast<double>(mutable_cf_options.write_buffer_size) *
+                  memtable_prefix_bloom_size_ratio) *
+              8u) +
+             curr_memtable_prefix_bloom_bits) /
+            2;
+        num_probes = static_cast<uint32_t>(
+            ceil(memtable_prefix_bloom_bits * 1.0 * 1.44 / unique_entries));
+      }
     }
+
+    // Zero out all these metrics.
+    const std::vector<InternalStats::InternalCFStatsType> stats_types = {
+        InternalStats::MEMTABLE_TOTAL_ADD_AT_FLUSH,
+        InternalStats::MEMTABLE_PAYLOAD_BYTES_AT_FLUSH,
+        InternalStats::MEMTABLE_GARBAGE_BYTES_AT_FLUSH,
+        InternalStats::MEMTABLE_HIT, InternalStats::MEMTABLE_MISS};
+    for (const auto& stats_type : stats_types) {
+      stats_s = internal_stats_.get()->SetInternalCFStats(stats_type, zero);
+      assert(stats_s.ok());
+    }
+    curr_memtable_prefix_bloom_bits = memtable_prefix_bloom_bits;
+    curr_memtable_num_prefix_bloom_probes = num_probes;
   }
 
   return new MemTable(internal_comparator_, ioptions_, mutable_cf_options,

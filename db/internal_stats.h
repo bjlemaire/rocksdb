@@ -480,7 +480,7 @@ class InternalStats {
   void TEST_GetCacheEntryRoleStats(CacheEntryRoleStats* stats, bool foreground);
 
   Status SetInternalCFStats(const InternalCFStatsType cf_stat_type,
-                            const uint64_t value) {
+                            const uint64_t& value) {
     Status s;
     if ((0 <= cf_stat_type) && (cf_stat_type < INTERNAL_CF_STATS_ENUM_MAX)) {
       cf_stats_count_[cf_stat_type] = value;
