@@ -55,12 +55,14 @@ Status DBImplReadOnly::Get(const ReadOptions& read_options,
                               &max_covering_tombstone_seq, read_options)) {
     pinnable_val->PinSelf();
     RecordTick(stats_, MEMTABLE_HIT);
+    cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_HIT);
   } else {
     PERF_TIMER_GUARD(get_from_output_files_time);
     super_version->current->Get(read_options, lkey, pinnable_val,
                                 /*timestamp=*/nullptr, &s, &merge_context,
                                 &max_covering_tombstone_seq);
     RecordTick(stats_, MEMTABLE_MISS);
+    cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_MISS);
   }
   RecordTick(stats_, NUMBER_KEYS_READ);
   size_t size = pinnable_val->size();

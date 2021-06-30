@@ -1087,9 +1087,21 @@ TEST_F(DBBloomFilterTest, MemtableSelfTuningBloomFilter) {
   std::string key3("AAAADDDD");
   std::string key4("AAAAEEEE");
   std::string value1("Value1");
+  std::string value2("Value2");
   std::string value3("Value3");
   std::string value4("Value4");
-
+  ASSERT_OK(Put(key1, value1));
+  ASSERT_OK(Put(key2, value2));
+  ASSERT_OK(Put(key3, value3));
+  ASSERT_OK(Put(key4, value4));
+  ASSERT_OK(Put(key1, value2));
+  ASSERT_OK(Put(key3, value4));
+  ASSERT_OK(Flush());
+  ASSERT_OK(Put(key3, value1));
+  ASSERT_OK(Put(key2, value4));
+  ASSERT_OK(Flush());
+  ASSERT_OK(Put(key4, value2));
+  ASSERT_OK(Put(key1, value3));
   // ASSERT_OK(Put(key1, value1, WriteOptions()));
 
   // // check memtable bloom stats

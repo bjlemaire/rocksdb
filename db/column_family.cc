@@ -1055,6 +1055,32 @@ uint64_t ColumnFamilyData::GetLiveSstFilesSize() const {
 
 MemTable* ColumnFamilyData::ConstructNewMemtable(
     const MutableCFOptions& mutable_cf_options, SequenceNumber earliest_seq) {
+  if (mutable_cf_options.memtable_self_tuning_bloom) {
+    size_t num_entries = 0, payload_bytes = 0, garbage_bytes = 0,
+           memtable_hit = 0, memtable_miss = 0;
+
+    Status stats_s = internal_stats_.get()->GetInternalCFStats(
+        InternalStats::MEMTABLE_NUM_ENTRIES_AT_FLUSH, &num_entries);
+    assert(stats_s.ok());
+    stats_s = internal_stats_.get()->GetInternalCFStats(
+        InternalStats::MEMTABLE_PAYLOAD_BYTES_AT_FLUSH, &payload_bytes);
+    assert(stats_s.ok());
+    stats_s = internal_stats_.get()->GetInternalCFStats(
+        InternalStats::MEMTABLE_GARBAGE_BYTES_AT_FLUSH, &garbage_bytes);
+    assert(stats_s.ok());
+    stats_s = internal_stats_.get()->GetInternalCFStats(
+        InternalStats::MEMTABLE_HIT, &memtable_hit);
+    assert(stats_s.ok());
+    stats_s = internal_stats_.get()->GetInternalCFStats(
+        InternalStats::MEMTABLE_MISS, &memtable_miss);
+    assert(stats_s.ok());
+    (void)num_entries;
+    (void)payload_bytes;
+    (void)garbage_bytes;
+    (void)memtable_hit;
+    (void)memtable_miss;
+  }
+
   return new MemTable(internal_comparator_, ioptions_, mutable_cf_options,
                       write_buffer_manager_, earliest_seq, id_);
 }

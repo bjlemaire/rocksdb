@@ -362,6 +362,7 @@ Status DBImplSecondary::GetImpl(const ReadOptions& read_options,
     done = true;
     pinnable_val->PinSelf();
     RecordTick(stats_, MEMTABLE_HIT);
+    cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_HIT);
   } else if ((s.ok() || s.IsMergeInProgress()) &&
              super_version->imm->Get(
                  lkey, pinnable_val->GetSelf(), /*timestamp=*/nullptr, &s,
@@ -369,6 +370,7 @@ Status DBImplSecondary::GetImpl(const ReadOptions& read_options,
     done = true;
     pinnable_val->PinSelf();
     RecordTick(stats_, MEMTABLE_HIT);
+    cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_HIT);
   }
   if (!done && !s.ok() && !s.IsMergeInProgress()) {
     ReturnAndCleanupSuperVersion(cfd, super_version);
@@ -380,6 +382,7 @@ Status DBImplSecondary::GetImpl(const ReadOptions& read_options,
                                 /*timestamp=*/nullptr, &s, &merge_context,
                                 &max_covering_tombstone_seq);
     RecordTick(stats_, MEMTABLE_MISS);
+    cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_MISS);
   }
   {
     PERF_TIMER_GUARD(get_post_process_time);

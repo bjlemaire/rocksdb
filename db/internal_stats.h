@@ -103,6 +103,12 @@ class InternalStats {
   enum InternalCFStatsType {
     L0_FILE_COUNT_LIMIT_SLOWDOWNS,
     LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS,
+    MEMTABLE_HIT,
+    MEMTABLE_MISS,
+    MEMTABLE_ADD,
+    MEMTABLE_NUM_ENTRIES_AT_FLUSH,
+    MEMTABLE_PAYLOAD_BYTES_AT_FLUSH,
+    MEMTABLE_GARBAGE_BYTES_AT_FLUSH,
     MEMTABLE_LIMIT_STOPS,
     MEMTABLE_LIMIT_SLOWDOWNS,
     L0_FILE_COUNT_LIMIT_STOPS,
@@ -415,7 +421,7 @@ class InternalStats {
     comp_stats_[level].bytes_moved += amount;
   }
 
-  void AddCFStats(InternalCFStatsType type, uint64_t value) {
+  void AddCFStats(InternalCFStatsType type, uint64_t value = 1) {
     cf_stats_value_[type] += value;
     ++cf_stats_count_[type];
   }
@@ -472,6 +478,30 @@ class InternalStats {
   }
 
   void TEST_GetCacheEntryRoleStats(CacheEntryRoleStats* stats, bool foreground);
+
+  Status SetInternalCFStats(const InternalCFStatsType cf_stat_type,
+                            const uint64_t value) {
+    Status s;
+    if ((0 <= cf_stat_type) && (cf_stat_type < INTERNAL_CF_STATS_ENUM_MAX)) {
+      cf_stats_count_[cf_stat_type] = value;
+      return s.OK();
+    } else {
+      return s.InvalidArgument(
+          Slice("Invalid argument provided to SetInternalCFStats."));
+    }
+  }
+  Status GetInternalCFStats(const InternalCFStatsType cf_stat_type,
+                            uint64_t* value) {
+    Status s;
+    if ((0 <= cf_stat_type) && (cf_stat_type < INTERNAL_CF_STATS_ENUM_MAX) &&
+        (value != nullptr)) {
+      *value = cf_stats_count_[cf_stat_type];
+      return s.OK();
+    } else {
+      return s.InvalidArgument(
+          Slice("Invalid arguments provided to SetInternalCFStats."));
+    }
+  }
 
   // Store a mapping from the user-facing DB::Properties string to our
   // DBPropertyInfo struct used internally for retrieving properties.
@@ -695,6 +725,7 @@ class InternalStats {
   enum InternalCFStatsType {
     L0_FILE_COUNT_LIMIT_SLOWDOWNS,
     LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS,
+    MEMTABLE_PAYLOAD_BYTES,
     MEMTABLE_LIMIT_STOPS,
     MEMTABLE_LIMIT_SLOWDOWNS,
     L0_FILE_COUNT_LIMIT_STOPS,

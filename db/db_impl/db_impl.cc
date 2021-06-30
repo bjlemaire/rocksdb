@@ -1832,6 +1832,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
         done = true;
         get_impl_options.value->PinSelf();
         RecordTick(stats_, MEMTABLE_HIT);
+        cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_HIT);
       } else if ((s.ok() || s.IsMergeInProgress()) &&
                  sv->imm->Get(lkey, get_impl_options.value->GetSelf(),
                               timestamp, &s, &merge_context,
@@ -1841,6 +1842,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
         done = true;
         get_impl_options.value->PinSelf();
         RecordTick(stats_, MEMTABLE_HIT);
+        cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_HIT);
       }
     } else {
       // Get Merge Operands associated with key, Merge Operands should not be
@@ -1850,12 +1852,14 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
                        read_options, nullptr, nullptr, false)) {
         done = true;
         RecordTick(stats_, MEMTABLE_HIT);
+        cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_HIT);
       } else if ((s.ok() || s.IsMergeInProgress()) &&
                  sv->imm->GetMergeOperands(lkey, &s, &merge_context,
                                            &max_covering_tombstone_seq,
                                            read_options)) {
         done = true;
         RecordTick(stats_, MEMTABLE_HIT);
+        cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_HIT);
       }
     }
     if (!done && !s.ok() && !s.IsMergeInProgress()) {
@@ -1874,6 +1878,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
         get_impl_options.get_value ? get_impl_options.is_blob_index : nullptr,
         get_impl_options.get_value);
     RecordTick(stats_, MEMTABLE_MISS);
+    cfd->internal_stats()->AddCFStats(InternalStats::MEMTABLE_MISS);
   }
 
   {
@@ -2051,6 +2056,7 @@ std::vector<Status> DBImpl::MultiGet(
           /*seq=*/nullptr, read_callback);
       value->assign(pinnable_val.data(), pinnable_val.size());
       RecordTick(stats_, MEMTABLE_MISS);
+      cfh->cfd()->internal_stats()->AddCFStats(InternalStats::MEMTABLE_MISS);
     }
 
     if (s.ok()) {
@@ -2562,6 +2568,8 @@ Status DBImpl::MultiGetImpl(
         lookup_current = true;
         uint64_t left = range.KeysLeft();
         RecordTick(stats_, MEMTABLE_MISS, left);
+        super_version->cfd->internal_stats()->AddCFStats(
+            InternalStats::MEMTABLE_MISS);
       }
     }
     if (lookup_current) {
