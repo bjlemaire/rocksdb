@@ -72,6 +72,8 @@ class DynamicBloom {
 
   void Prefetch(uint32_t h);
 
+  uint64_t UniqueEntryEstimate() const;
+
  private:
   // Length of the structure, in 64-bit words. For this structure, "word"
   // will always refer to 64-bit words.
@@ -209,6 +211,14 @@ inline void DynamicBloom::AddHash(uint32_t h32, const OrFunc& or_func) {
     }
     h = (h >> 12) | (h << 52);
   }
+}
+
+inline int UniqueEntryEstimate() const {
+  int count = 0;
+  for (uint32_t i = 0; i < kLen; i++) {
+    count += BitsSetToOne<uint64_t>(data[i]);
+  }
+  return count;
 }
 
 }  // namespace ROCKSDB_NAMESPACE
