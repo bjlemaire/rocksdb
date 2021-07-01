@@ -1102,7 +1102,7 @@ MemTable* ColumnFamilyData::ConstructNewMemtable(
         // close as this 10% maximum. Conversely, if there is no misses, you
         // want to allocate 0 bits.
         double memtable_prefix_bloom_size_ratio =
-            0.1 * exp(-1 / (memtable_miss * 1.0 / (memtable_hit + num_add)));
+            0.1 * exp(-1 / (memtable_miss * 10.0 / (memtable_hit + num_add)));
 
         // Take an average of the newly recommended bloom bits and the
         // previously allocated number of bits:
