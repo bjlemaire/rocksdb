@@ -896,11 +896,11 @@ DEFINE_int64(max_num_range_tombstones, 0,
 DEFINE_bool(expand_range_tombstones, false,
             "Expand range tombstone into sequential regular tombstones.");
 
-DEFINE_int32(num_overwrites, -1,
-             "Number of overwrites in UpdateRandom benchmark. This "
-             "number is used in combination with num to create a ratio r. "
-             "Then, each new write operation has a probability r of "
-             "being an overwrite.");
+DEFINE_double(overwrite_probability, -1.0,
+             "Each new write operation has a probability p of being "
+             "an overwrite in the UpdateRandom benchmark. When overwrite, "
+             "the key is randomly picked from a reservoir of keys of size "
+             "overwrite_sample_size. When pure write, the key is randomly ");
 
 DEFINE_uint64(overwrite_sample_size, 100,
               "Size of overwrite sample used in UpdateRandom benchmark. "
@@ -6793,13 +6793,15 @@ class Benchmark {
     std::vector<std::string> inserted_keys_sample;
     std::default_random_engine bergen;
     double p = 0.0;
-    // Create Bernoulli distribution parameter for number
-    // of overwrites if user specified num_overwrites.
-    if (FLAGS_num_overwrites >= 0) {
-      p = FLAGS_num_overwrites * 1.0 / FLAGS_num;
-      p = p > 1.0 ? 1.0 : p;
+    // Create Bernoulli distribution parameter
+    // for overwrite_probability.
+    if (FLAGS_overwrite_probability >= 0.0) {
+      p = FLAGS_overwrite_probability > 1.0 ?
+              1.0 : FLAGS_overwrite_probability;
     }
-    std::bernoulli_distribution distribution(p);
+    std::bernoulli_distribution overwrite_decider(p);
+    // "newkey" is used when overwrite_ratio is set by user.
+    std::string newkey;
     Slice key = AllocateKey(&key_guard);
     char* start = const_cast<char*>(key.data());
     char* pos = start;
@@ -6810,16 +6812,19 @@ class Benchmark {
     // the number of iterations is the larger of read_ or write_
     while (!duration.Done(1)) {
       DB* db = SelectDB(thread);
-      // If user specified overwrite ratio:
-      if (FLAGS_num_overwrites >= 0) {
+      // If user specified overwrite probability:
+      if (FLAGS_overwrite_probability >= 0.0) {
         // Decide if we do an overwrite (probability p).
-        // Note: an overwrite is possible only once at least
-        // one key has been inserted.
-        if (inserted_keys_sample.size() > 0 && distribution(bergen)) {
+        // Note: a write can only become an overwrite if
+        // and only if at least one key has already been inserted into the DB.
+        if (inserted_keys_sample.size() > 0 && overwrite_decider(bergen)) {
           // If overwrite, randomly select key from sample (reservoir).
-          std::string newkey =
-              inserted_keys_sample[thread->rand.Next() %
-                                   inserted_keys_sample.size()];
+          newkey = inserted_keys_sample[thread->rand.Next() %
+                                     inserted_keys_sample.size()];
+          GenerateKeyFromInt(thread->rand.Next(), std::numeric_limits<uint64_t>::max(),
+                    &key);
+          Status sget = db->Get(options, key, &value);
+
           // Copy string chars to key.
           for (size_t i = 0; i < key.size(); i++) {
             pos[i] = newkey[i];
@@ -6829,11 +6834,14 @@ class Benchmark {
           Status sget = Status::OK();
           // Keep generating new key until we obtain a key
           // not already present in the DB.
-          do {
-            GenerateKeyFromInt(thread->rand.Next() % FLAGS_num, FLAGS_num,
+          for (size_t i=0; i<1; i++){
+            GenerateKeyFromInt(thread->rand.Next(), std::numeric_limits<uint64_t>::max(),
                                &key);
             sget = db->Get(options, key, &value);
-          } while (sget.ok());
+            if (!sget.ok()){
+              break;
+            }
+          }
 
           // Update the "inserted_keys_sample" reservoir.
           if (static_cast<uint64_t>(inserted_keys_sample.size()) <
