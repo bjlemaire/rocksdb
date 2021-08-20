@@ -15,7 +15,7 @@ High amounts of in-memory garbage is problematic for multiple reasons.
 - Write amplification: more level 0 SST file leads to an increase in the number of compaction operations, leading itself to a high temporary write amplification.
 - Higher Level 0 lookup costs
 - For Hard Drive storage, in-memory garbage leads to multiple disk accesses, which are typically costly.
--
+
 
 ## Feature design
 #### Targeting
