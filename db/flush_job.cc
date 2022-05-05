@@ -884,6 +884,19 @@ Status FlushJob::WriteLevel0Table() {
       uint64_t oldest_key_time =
           mems_.front()->ApproximateOldestKeyTime();
 
+      // When mempurge feature is activated, there is no guarantee
+      // that the mems_.front() memtable is the oldest memtable.
+      // Therefore, we must iterate over the memtables.
+      // Note that m->ApproximateOldestKeyTime is initialized
+      // to std::numeric_limits<uint64_t>::max(), so this code
+      // snippet works even when oldest_key_time is not available.
+      if (db_options_.experimental_mempurge_threshold > 0.0) {
+        for (const auto& m : mems_) {
+          oldest_key_time =
+              std::min(m->ApproximateOldestKeyTime(), oldest_key_time);
+        }
+      }
+
       // It's not clear whether oldest_key_time is always available. In case
       // it is not available, use current_time.
       uint64_t oldest_ancester_time = std::min(current_time, oldest_key_time);
